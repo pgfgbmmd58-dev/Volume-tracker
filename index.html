@@ -64,8 +64,11 @@ document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{sym=b.dataset.s;
 $('#exp').onchange=e=>{exp=e.target.value;prevV={};render()};
 $('#tc').onclick=()=>{side='calls';$('#tc').className='on c';$('#tp').className='p';render()};
 $('#tp').onclick=()=>{side='puts';$('#tp').className='on p';$('#tc').className='c';render()};
-async function load(){try{const[d,s]=await Promise.all([fetch(`data/${sym}.json?`+Date.now()).then(r=>r.json()),fetch('data/status.json?'+Date.now()).then(r=>r.json())]);D=d;
-const age=Date.now()/1000-d.fetched;$('#err').innerHTML=(!s.ok||age>900)?`<div class=warn>⚠ Stale / unavailable — last good data ${ct(d.fetched)}${s.error?' · '+s.error:''}</div>`:(age>180?`<div class=warn>⏱ Delayed ~${Math.round(age/60)} min (web link updates every few minutes) — data ${ct(d.fetched)}</div>`:'');render(age<=900&&s.ok)}catch(e){$('#err').innerHTML='<div class=warn>⚠ Data unavailable</div>'}}
+const RAW='https://raw.githubusercontent.com/pgfgbmmd58-dev/Volume-tracker/',TOPIC='https://ntfy.sh/vt-b64757934d468d33/json?poll=1&since=latest';let SHA=null;
+async function base(){try{const t=await (await fetch(TOPIC,{cache:'no-store'})).text();const m=JSON.parse(t.trim().split('\n').pop()).message;if(/^[0-9a-f]{40}$/.test(m))SHA=m}catch(e){}return SHA?RAW+SHA+'/':null}
+async function getJ(b,f){if(b){try{const r=await fetch(b+f);if(r.ok)return await r.json()}catch(e){}}return (await fetch(f+'?'+Date.now())).json()}
+async function load(){try{const b=await base();const[d,s]=await Promise.all([getJ(b,`data/${sym}.json`),getJ(b,'data/status.json')]);if(D&&D.fetched>d.fetched&&D.symbol===d.symbol)return;D=d;
+const age=Date.now()/1000-d.fetched;$('#err').innerHTML=(!s.ok||age>600)?`<div class=warn>⚠ Stale / unavailable — last good data ${ct(d.fetched)}${s.error?' · '+s.error:''}</div>`:(age>180?`<div class=warn>⏱ Delayed ~${Math.round(age/60)} min — data ${ct(d.fetched)}</div>`:'');render(age<=600&&s.ok)}catch(e){$('#err').innerHTML='<div class=warn>⚠ Data unavailable</div>'}}
 const unus=c=>{const r=c.openInterest?c.volume/c.openInterest:null,sp=c.prevVolume!=null&&c.volume-c.prevVolume>Math.max(500,.25*c.prevVolume);return{r,flag:(r>25&&c.volume>=1000)||sp,sp}};
 function render(live=true){const E=Object.keys(D.expiries);if(!exp||!E.includes(exp))exp=E[0];
 $('#exp').innerHTML=E.map((e,i)=>`<option value=${e} ${e==exp?'selected':''}>${new Date(e*1000).toLocaleDateString('en-US',{timeZone:'UTC',month:'short',day:'numeric'})}${i==0?' · 0DTE':''}</option>`).join('');
@@ -84,5 +87,5 @@ $('#lad').innerHTML=ks.map(k=>`<div class="r ${k==atm?'atm':''}" style="opacity:
 const L=[...x[side]].sort((a,b)=>(b.volume||0)-(a.volume||0)).slice(0,8),cl=side=='calls'?'c':'p';
 $('#top').innerHTML=`<div class="t th"><div>Strike</div><div>Vol</div><div>OI · V/OI</div><div>Last · IV</div></div>`+L.map(c=>{const u=unus(c);return`<div class=t><div class=${cl}><b>${c.strike}</b>${u.flag?' <span style="color:#ffd25a">●</span>':''}</div><div>${f(c.volume)}</div><div>${f(c.openInterest)} · <span style="color:${u.r>1?'#ffd25a':'inherit'}">${u.r==null?'–':u.r.toFixed(1)}</span></div><div>${c.lastPrice?.toFixed(2)} · ${c.impliedVolatility?(c.impliedVolatility*100).toFixed(0)+'%':'–'}</div></div>`}).join('');
 $('#foot').innerHTML='● unusual = Vol/OI &gt; 25× (0DTE always runs over 1×) or a volume jump since last refresh · glow = relative volume<br>Yahoo Finance data, may be delayed · OI is from prior day · refreshes every 60s';}
-load();setInterval(load,30000);
+load();setInterval(load,20000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
 </script></body></html>
