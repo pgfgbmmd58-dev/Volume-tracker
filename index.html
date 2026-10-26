@@ -87,5 +87,5 @@ $('#lad').innerHTML=ks.map(k=>`<div class="r ${k==atm?'atm':''}" style="opacity:
 const L=[...x[side]].sort((a,b)=>(b.volume||0)-(a.volume||0)).slice(0,8),cl=side=='calls'?'c':'p';
 $('#top').innerHTML=`<div class="t th"><div>Strike</div><div>Vol</div><div>OI · V/OI</div><div>Last · IV</div></div>`+L.map(c=>{const u=unus(c);return`<div class=t><div class=${cl}><b>${c.strike}</b>${u.flag?' <span style="color:#ffd25a">●</span>':''}</div><div>${f(c.volume)}</div><div>${f(c.openInterest)} · <span style="color:${u.r>1?'#ffd25a':'inherit'}">${u.r==null?'–':u.r.toFixed(1)}</span></div><div>${c.lastPrice?.toFixed(2)} · ${c.impliedVolatility?(c.impliedVolatility*100).toFixed(0)+'%':'–'}</div></div>`}).join('');
 $('#foot').innerHTML='● unusual = Vol/OI &gt; 25× (0DTE always runs over 1×) or a volume jump since last refresh · glow = relative volume<br>Yahoo Finance data, may be delayed · OI is from prior day · refreshes every 60s';}
-load();setInterval(load,20000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
+load();setInterval(load,8000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
 </script></body></html>
