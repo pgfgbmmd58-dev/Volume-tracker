@@ -40,6 +40,9 @@ select{min-height:40px;background:rgba(0,0,0,.35);color:#e8eef6;border:0;border-
 .th{color:#7d8a99;font-size:11px}.tabs2{display:flex;gap:6px;margin-bottom:8px}
 .tabs2 button{flex:1;min-height:40px;border:0;border-radius:10px;background:rgba(0,0,0,.3);color:#9aa7b6;font:600 14px inherit}.tabs2 button.on.c{background:rgba(61,245,160,.15);color:#3df5a0}.tabs2 button.on.p{background:rgba(255,82,119,.15);color:#ff5277}
 .warn{margin:0 12px 10px;padding:10px 14px;border-radius:14px;background:rgba(255,82,119,.15);border:1px solid rgba(255,82,119,.4);font-size:13px}
+.vd{margin:12px;padding:14px 12px 10px}.vd .lh{padding:0 4px 6px}.vd svg{width:100%;height:auto;display:block}
+.vr{font-size:13px;color:#cfd8e3;margin-top:6px;padding:0 4px;min-height:18px}.lg{display:flex;gap:12px;font-size:10px;color:#7d8a99;padding:4px 4px 0;flex-wrap:wrap}
+.lg i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:4px;vertical-align:middle}
 .foot{text-align:center;color:#56616e;font-size:11px;padding:6px 20px}
 .live{display:inline-block;width:7px;height:7px;border-radius:50%;background:#3df5a0;box-shadow:0 0 8px #3df5a0;margin-right:5px;animation:blink 1.5s infinite alternate}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -53,6 +56,7 @@ select{min-height:40px;background:rgba(0,0,0,.35);color:#e8eef6;border:0;border-
 <g id=needle style="transition:transform 1s cubic-bezier(.2,.8,.2,1);transform-origin:120px 120px"><line x1=120 y1=120 x2=120 y2=62 stroke="#fff" stroke-width=3 stroke-linecap=round /><circle cx=120 cy=120 r=6 fill="#fff"/></g></svg>
 <div class=pc><b id=pcr>–</b><span>PUT / CALL</span></div></div>
 <div class=cv><span class=c id=cv>Calls –</span><span class=p id=pv>Puts –</span></div></section>
+<section class="vd glass"><div class=lh><span>SHARE VOLUME · 5-MIN</span><span id=vdl></span></div><svg id=vds viewBox="0 0 340 140" role=img aria-label="Intraday volume chart"></svg><div class=lg><span><i style="background:#5ac8ff"></i>today</span><span><i style="background:#ffd25a"></i>typical (prior days avg)</span><span><i style="background:repeating-linear-gradient(90deg,#c9a0ff 0 3px,transparent 3px 5px)"></i>today median</span></div><div class=vr id=vdr></div></section>
 <section class="ladder glass"><div class=lh><span class=p>PUTS</span><span>STRIKE HEAT</span><span class=c>CALLS</span></div><div id=lad></div></section>
 <section class="tops glass"><div class=tabs2><button id=tc class="on c">Top calls</button><button id=tp class=p>Top puts</button></div><div id=top></div></section>
 <div class=foot id=foot></div>
@@ -86,6 +90,31 @@ return`<div class="b ${u.flag?'flag':''} ${pulse?'pulse':''}" style="width:${Mat
 $('#lad').innerHTML=ks.map(k=>`<div class="r ${k==atm?'atm':''}" style="opacity:${1-Math.min(.55,Math.abs(k-sp)/(sp*.012))}"><div class=L>${bar(P[k],'p')}</div><div class=k>${k}</div><div class=R>${bar(C[k],'c')}</div></div>`).join('');
 const L=[...x[side]].sort((a,b)=>(b.volume||0)-(a.volume||0)).slice(0,8),cl=side=='calls'?'c':'p';
 $('#top').innerHTML=`<div class="t th"><div>Strike</div><div>Vol</div><div>OI · V/OI</div><div>Last · IV</div></div>`+L.map(c=>{const u=unus(c);return`<div class=t><div class=${cl}><b>${c.strike}</b>${u.flag?' <span style="color:#ffd25a">●</span>':''}</div><div>${f(c.volume)}</div><div>${f(c.openInterest)} · <span style="color:${u.r>1?'#ffd25a':'inherit'}">${u.r==null?'–':u.r.toFixed(1)}</span></div><div>${c.lastPrice?.toFixed(2)} · ${c.impliedVolatility?(c.impliedVolatility*100).toFixed(0)+'%':'–'}</div></div>`}).join('');
+try{vday()}catch(e){}
 $('#foot').innerHTML='● unusual = Vol/OI &gt; 25× (0DTE always runs over 1×) or a volume jump since last refresh · glow = relative volume<br>Yahoo Finance data, may be delayed · OI is from prior day · refreshes every 60s';}
+
+function vday(){const I=D.intraday,svg=$('#vds');if(!I||!I.bars||!I.bars.length){svg.innerHTML='<text x=170 y=72 fill="#7d8a99" font-size=12 text-anchor=middle>Intraday volume unavailable</text>';$('#vdr').textContent='';$('#vdl').textContent='';return}
+const S=[];for(let m=570;m<960;m+=5)S.push(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'));
+const B=Object.fromEntries(I.bars),T=I.typical||{},ok=v=>v!=null&&v<=5e6;
+const nowET=new Date().toLocaleString('en-CA',{timeZone:'America/New_York',hour12:false}).replace(',','');const td=nowET.slice(0,10),hm=nowET.slice(11,16);
+const live=I.session===td&&hm>='09:30'&&hm<'16:00';
+const vals=I.bars.map(b=>b[1]).filter(ok).sort((a,b)=>a-b),med=vals.length?vals[Math.floor(vals.length/2)]:0;
+const mx=Math.max(1,...S.slice(1,-1).map(k=>Math.max(ok(B[k])?B[k]:0,T[k]||0)))*1.15,W=340,H=118,bw=W/S.length,y=v=>H-Math.min(v,mx)/mx*(H-6);
+let g=`<rect x=0 y=0 width=${6*bw} height=${H} fill="rgba(90,200,255,.07)"/><rect x=${W-6*bw} y=0 width=${6*bw} height=${H} fill="rgba(255,82,119,.07)"/>`;
+S.forEach((k,i)=>{const v=B[k];if(v==null)return;const c=v>5e6?'#56616e':(i<6||i>=S.length-6)?'#7fd6ff':'#5ac8ff';g+=`<rect x=${(i*bw+.4).toFixed(1)} y=${y(v).toFixed(1)} width=${(bw-.8).toFixed(1)} height=${(H-y(v)).toFixed(1)} rx=1 fill="${c}" opacity="${(T[k]&&v>1.5*T[k])?1:.75}"/>`});
+const pts=S.map((k,i)=>T[k]!=null?`${(i*bw+bw/2).toFixed(1)},${y(T[k]).toFixed(1)}`:null).filter(Boolean).join(' ');
+if(pts)g+=`<polyline points="${pts}" fill=none stroke="#ffd25a" stroke-width=1.3 opacity=.9 />`;
+if(med)g+=`<line x1=0 x2=${W} y1=${y(med).toFixed(1)} y2=${y(med).toFixed(1)} stroke="#c9a0ff" stroke-width=1 stroke-dasharray="4 3"/><text x=${W-2} y=${(y(med)-3).toFixed(1)} fill="#c9a0ff" font-size=9 text-anchor=end>med ${f(med)}</text>`;
+g+=`<line x1=0 x2=${W} y1=${H} y2=${H} stroke="rgba(255,255,255,.12)"/>`;
+[['9:30',0],['open',3],['11',18],['12',30],['1',42],['2',54],['3',66],['close',75]].forEach(([t,i])=>g+=`<text x=${(i*bw+(t=='open'||t=='close'?bw/2:0)).toFixed(1)} y=${H+14} fill="${t=='open'?'#7fd6ff':t=='close'?'#ff8aa5':'#7d8a99'}" font-size=9 text-anchor=${t=='9:30'?'start':'middle'}>${t=='9:30'?'':t}</text>`);
+if(B['09:30']>mx)g+=`<text x=${bw+2} y=10 fill="#7fd6ff" font-size=9>▲ 9:30 bar ${f(B['09:30'])}</text>`;svg.innerHTML=g;
+$('#vdl').textContent=live?'today, ET':'last session '+new Date(I.session+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+const done=I.bars.filter(b=>S.includes(b[0])&&ok(b[1])&&(!live||b[0]<=hm));let cur=done.length>1&&live?done[done.length-2]:done[done.length-1];
+const rx=(a,b)=>b?(a/b).toFixed(1)+'×':'–',sumR=ks=>{let a=0,b=0;ks.forEach(k=>{if(ok(B[k])&&T[k]){a+=B[k];b+=T[k]}});return b?a/b:null};
+const o=sumR(S.slice(0,6)),c=sumR(S.slice(-6).filter(k=>B[k]!=null));
+let r=[];if(cur&&T[cur[0]])r.push(`${live?'Now':'Last bar'} (${cur[0]} ET): ${f(cur[1])}, ${rx(cur[1],T[cur[0]])} typical for this time`);
+if(o!=null)r.push(`opening 30m ${o.toFixed(1)}×`);if(c!=null&&S.slice(-6).every(k=>B[k]!=null))r.push(`closing 30m ${c.toFixed(1)}×`);
+if(cur&&med)r.push(`${rx(cur[1],med)} today's median`);
+$('#vdr').textContent=r.length?r.join(' · '):'Waiting for typical-day data';}
 load();setInterval(load,8000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
 </script></body></html>
