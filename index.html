@@ -69,10 +69,19 @@ document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{sym=b.dataset.s;
 $('#exp').onchange=e=>{exp=e.target.value;prevV={};render()};
 $('#tc').onclick=()=>{side='calls';$('#tc').className='on c';$('#tp').className='p';render()};
 $('#tp').onclick=()=>{side='puts';$('#tp').className='on p';$('#tc').className='c';render()};
-const RAW='https://raw.githubusercontent.com/pgfgbmmd58-dev/Volume-tracker/',TOPIC='https://ntfy.sh/vt-b64757934d468d33/json?poll=1&since=latest';let SHA=null;
-async function base(){try{const t=await (await fetch(TOPIC,{cache:'no-store'})).text();const m=JSON.parse(t.trim().split('\n').pop()).message;if(/^[0-9a-f]{40}$/.test(m))SHA=m}catch(e){}return SHA?RAW+SHA+'/':null}
-async function getJ(b,f){if(b){try{const r=await fetch(b+f);if(r.ok)return await r.json()}catch(e){}}return (await fetch(f+'?'+Date.now())).json()}
-async function load(){try{const b=await base();const[d,s]=await Promise.all([getJ(b,`data/${sym}.json`),getJ(b,'data/status.json')]);if(D&&D.fetched>d.fetched&&D.symbol===d.symbol)return;D=d;
+const RAW='https://raw.githubusercontent.com/pgfgbmmd58-dev/Volume-tracker/',API='https://api.github.com/repos/pgfgbmmd58-dev/Volume-tracker/commits/data';
+// Backend pushes tag t<k> for each 10s bucket k=floor(epoch/10) (every 6th bucket off-hours). A tag URL is new, so raw's cache can't serve stale data.
+let OFF=5,LASTK=0,SHA=null,API_AT=0,MISS=0;
+const mkt=t=>{const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date(t*1000)),o={};p.forEach(x=>o[x.type]=x.value);const hm=(+o.hour%24)*100+ +o.minute;return!['Sat','Sun'].includes(o.weekday)&&hm>=920&&hm<1610};
+async function j(u){const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw r.status;return r.json()}
+async function viaTags(){const t=Date.now()/1000,st=mkt(t-OFF)?1:6;let k=Math.floor((t-OFF)/10);k-=((k%st)+st)%st;
+for(let i=0;i<4;i++,k-=st){if(k<LASTK)break;try{const s=await j(RAW+'t'+k+'/data/status.json'),d=await j(RAW+'t'+k+`/data/${sym}.json`);if(i==0)OFF=Math.max(4,OFF-.25);LASTK=k;return[d,s]}catch(e){if(i==0)OFF=Math.min(40,OFF+2)}}
+throw 'tags'}
+async function viaApi(){if(Date.now()-API_AT>90000||!SHA){API_AT=Date.now();try{const r=await j(API);if(r.sha)SHA=r.sha}catch(e){}}if(!SHA)throw 'api';return[await j(RAW+SHA+`/data/${sym}.json`),await j(RAW+SHA+'/data/status.json')]}
+async function getData(){try{const r=await viaTags();MISS=0;return r}catch(e){MISS++}
+if(D&&D.symbol===sym&&MISS<3)return[D,STAT];try{return await viaApi()}catch(e){}return[await j(`data/${sym}.json?`+Date.now()),await j('data/status.json?'+Date.now())]}
+let STAT={ok:true};
+async function load(){try{const[d,s]=await getData();STAT=s;if(D&&D.fetched>d.fetched&&D.symbol===d.symbol)return;D=d;
 const age=Date.now()/1000-d.fetched;$('#err').innerHTML=(!s.ok||age>600)?`<div class=warn>⚠ Stale / unavailable — last good data ${ct(d.fetched)}${s.error?' · '+s.error:''}</div>`:(age>180?`<div class=warn>⏱ Delayed ~${Math.round(age/60)} min — data ${ct(d.fetched)}</div>`:'');render(age<=600&&s.ok)}catch(e){$('#err').innerHTML='<div class=warn>⚠ Data unavailable</div>'}}
 const unus=c=>{const r=c.openInterest?c.volume/c.openInterest:null,sp=c.prevVolume!=null&&c.volume-c.prevVolume>Math.max(500,.25*c.prevVolume);return{r,flag:(r>25&&c.volume>=1000)||sp,sp}};
 function render(live=true){const E=Object.keys(D.expiries);if(!exp||!E.includes(exp))exp=E[0];
@@ -122,5 +131,5 @@ let r=[];if(fk){const sec=(+hm.slice(3)%5)*60+new Date().getSeconds(),pr=Math.ro
 if(o!=null)r.push(`opening 30m ${o.toFixed(1)}×`);if(c!=null&&S.slice(-6).every(k=>B[k]!=null))r.push(`closing 30m ${c.toFixed(1)}×`);
 if(cur&&med)r.push(`${rx(cur[1],med)} today's median`);
 $('#vdr').textContent=r.length?r.join(' · '):'Waiting for typical-day data';}
-load();setInterval(load,8000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
+let busy=0;const tick=async()=>{if(busy)return;busy=1;try{await load()}finally{busy=0}};tick();setInterval(tick,5000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick()});
 </script></body></html>
